@@ -1,6 +1,6 @@
 # Telegram Reminder Bot
 
-A simple Telegram bot to help you set reminders for specific dates and times. You can set one-time reminders or repeating reminders (daily/weekly). The bot also allows you to view active and expired reminders.
+A Telegram bot to schedule reminders with support for **daily, weekly, monthly, quarterly, half-yearly, and yearly repeats**. Set one-time or recurring reminders and view active/expired reminders effortlessly.
 
 ---
 
@@ -11,22 +11,18 @@ A simple Telegram bot to help you set reminders for specific dates and times. Yo
    - [/list](#list)
    - [/expired](#expired)
 2. [Use Cases](#use-cases)
-3. [How to Host](#how-to-host)
+3. [Hosting Guide](#hosting-guide)
 4. [Contributing](#contributing)
+5. [License](#license)
 
 ---
 
 ## Commands
 
 ### `/start`
-Starts the bot and provides a welcome message with instructions.
+Start the bot and view instructions.
 
 **Syntax**:
-```
-/start
-```
-
-**Example**:
 ```
 /start
 ```
@@ -39,53 +35,41 @@ Hi! I'm your reminder bot. Use /remind to set a reminder, /list to view active r
 ---
 
 ### `/remind`
-Sets a reminder for a specific date and time. You can also set repeating reminders (daily or weekly).
+Set a reminder with optional repeats.  
+**Supports**: `daily`, `weekly`, `monthly`, `quarterly`, `half-yearly`, `yearly`.
 
 **Syntax**:
 ```
-/remind YYYY-MM-DD HH:MM "Your Message" [repeat]
+/remind dd-mm-yyyy HH:MM "Your Message" [repeat]
 ```
 
-- **`YYYY-MM-DD`**: The date for the reminder (e.g., `2025-02-12`).
-- **`HH:MM`**: The time for the reminder (e.g., `09:00`).
-- **`"Your Message"`**: The reminder message (enclosed in quotes).
-- **`[repeat]`**: (Optional) The repetition interval (`daily` or `weekly`).
+- **`dd-mm-yyyy`**: Date (e.g., `15-03-2025`).
+- **`HH:MM`**: Time (e.g., `09:00`).
+- **`"Your Message"`**: Reminder text (in quotes).
+- **`[repeat]`**: Optional repeat interval.
 
 **Examples**:
-1. **One-Time Reminder**:
-   ```
-   /remind 2025-02-12 09:00 "Take your vitamins"
-   ```
-   - Sets a reminder for February 12, 2025, at 9:00 AM.
-
-2. **Daily Reminder**:
-   ```
-   /remind 2025-02-12 07:00 "Good morning! Time for a jog" daily
-   ```
-   - Sets a daily reminder starting from February 12, 2025, at 7:00 AM.
-
-3. **Weekly Reminder**:
-   ```
-   /remind 2025-02-12 10:00 "Weekly report due" weekly
-   ```
-   - Sets a weekly reminder starting from February 12, 2025, at 10:00 AM.
+| Type               | Command Example                                                                 |
+|--------------------|---------------------------------------------------------------------------------|
+| One-Time           | `/remind 15-03-2025 09:00 "Submit tax form"`                                   |
+| Daily              | `/remind 15-03-2025 07:00 "Morning jog" daily`                                 |
+| Weekly             | `/remind 15-03-2025 10:00 "Team meeting" weekly`                               |
+| Monthly            | `/remind 15-03-2025 18:00 "Pay rent" monthly`                                  |
+| Quarterly          | `/remind 15-03-2025 11:00 "Quarterly report" quarterly`                        |
+| Half-Yearly        | `/remind 15-03-2025 12:00 "Dentist checkup" half-yearly`                       |
+| Yearly             | `/remind 15-03-2025 08:00 "Anniversary celebration" yearly`                   |
 
 **Response**:
 ```
-Reminder set for 2025-02-12 09:00!
+Reminder set for 15-03-2025 09:00!
 ```
 
 ---
 
 ### `/list`
-Lists all active reminders.
+View all active reminders.
 
 **Syntax**:
-```
-/list
-```
-
-**Example**:
 ```
 /list
 ```
@@ -93,21 +77,16 @@ Lists all active reminders.
 **Response**:
 ```
 Your active reminders:
-1. 2025-02-12 09:00: Take your vitamins (Repeat: No)
-2. 2025-02-12 07:00: Good morning! Time for a jog (Repeat: daily)
+1. 15-03-2025 09:00: Submit tax form (Repeat: No)
+2. 15-03-2025 07:00: Morning jog (Repeat: daily)
 ```
 
 ---
 
 ### `/expired`
-Lists all expired reminders.
+View expired (completed) reminders.
 
 **Syntax**:
-```
-/expired
-```
-
-**Example**:
 ```
 /expired
 ```
@@ -115,48 +94,38 @@ Lists all expired reminders.
 **Response**:
 ```
 Your expired reminders:
-1. 2025-02-12 09:00: Take your vitamins
-2. 2025-02-12 18:00: Weekly team meeting
+1. 15-03-2024 09:00: Submit tax form
 ```
 
 ---
 
 ## Use Cases
 
-1. **Personal Reminders**:
-   - Set reminders for daily tasks like taking medication, exercising, or attending meetings.
-   - Example:
-     ```
-     /remind 2025-02-12 08:00 "Take your vitamins" daily
-     ```
+### 🏠 **Personal**
+- **Daily**: `"Take medication"`, `"Water plants"`
+- **Yearly**: `"Birthday reminders"`, `"Insurance renewal"`
 
-2. **Work Reminders**:
-   - Set reminders for deadlines, meetings, or weekly reports.
-   - Example:
-     ```
-     /remind 2025-02-12 10:00 "Submit weekly report" weekly
-     ```
+### 💼 **Work**
+- **Weekly**: `"Team sync-up"`, `"Timesheet submission"`
+- **Quarterly**: `"Business reviews"`, `"Client reports"`
 
-3. **Event Reminders**:
-   - Set reminders for special events like birthdays or anniversaries.
-   - Example:
-     ```
-     /remind 2025-02-12 18:00 "Call John for his birthday"
-     ```
+### 🎉 **Events**
+- **Monthly**: `"Pay rent"`, `"Book club meeting"`
+- **Half-Yearly**: `"Car service"`, `"Medical checkup"`
 
 ---
 
-## How to Host
+## Hosting Guide
 
 ### Prerequisites
-- Python 3.7 or higher.
-- A Telegram bot token from [BotFather](https://core.telegram.org/bots#botfather).
+- Python 3.7+
+- Telegram bot token from [BotFather](https://t.me/BotFather)
 
 ### Steps
-1. **Clone the Repository**:
+1. **Clone Repository**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
-   cd YOUR_REPOSITORY_NAME
+   git clone https://github.com/YOUR_USERNAME/telegram-reminder-bot.git
+   cd telegram-reminder-bot
    ```
 
 2. **Install Dependencies**:
@@ -165,38 +134,32 @@ Your expired reminders:
    ```
 
 3. **Set Environment Variable**:
-   - Set the `YOUR_API_TOKEN` environment variable with your Telegram bot token.
-   - On Linux/macOS:
-     ```bash
-     export YOUR_API_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-     ```
-   - On Windows (Command Prompt):
-     ```cmd
-     set YOUR_API_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
-     ```
+   ```bash
+   export YOUR_API_TOKEN="YOUR_BOT_TOKEN"  # Linux/macOS
+   set YOUR_API_TOKEN=YOUR_BOT_TOKEN       # Windows
+   ```
 
-4. **Run the Bot**:
+4. **Run Locally**:
    ```bash
    python3 bot.py
    ```
 
-5. **Deploy on Render**:
-   - Follow the [Render deployment guide](#render-deployment).
-
----
-
-### Render Deployment
-1. Sign up at [Render](https://render.com).
-2. Create a new **Web Service** and connect your GitHub repository.
-3. Set the `YOUR_API_TOKEN` environment variable in the Render dashboard.
-4. Deploy the service.
+### Free Hosting Options
+| Platform       | Guide                                                                         |
+|----------------|-------------------------------------------------------------------------------|
+| **Render**     | [Deploy on Render](https://render.com/docs/deploy-telegram-bot)               |
+| **Fly.io**     | [Fly.io Deployment](https://fly.io/docs/apps/launch/)                         |
 
 ---
 
 ## Contributing
-Contributions are welcome! If you find any issues or have suggestions for improvements, please open an issue or submit a pull request.
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/new-feature`.
+3. Commit changes: `git commit -m "Add new feature"`.
+4. Push to the branch: `git push origin feature/new-feature`.
+5. Open a pull request.
 
 ---
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
