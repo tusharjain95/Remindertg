@@ -1,4 +1,4 @@
-import os  # Add this import at the top
+import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -10,7 +10,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Fetch the token from the environment variable
-TOKEN = os.getenv("YOUR_API_TOKEN")  # Add this line to fetch the token
+TOKEN = os.getenv("YOUR_API_TOKEN")
 
 # Dictionary to store reminders for each user
 user_reminders = {}  # Active reminders
@@ -23,10 +23,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Command to set a reminder
 async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Parse the command: /remind YYYY-MM-DD HH:MM "Message" [repeat]
+        # Parse the command: /remind dd-mm-yyyy HH:MM "Message" [repeat]
         args = context.args
         if len(args) < 3:
-            await update.message.reply_text("Usage: /remind YYYY-MM-DD HH:MM \"Message\" [repeat]")
+            await update.message.reply_text("Usage: /remind dd-mm-yyyy HH:MM \"Message\" [repeat]")
             return
 
         date_str = args[0]
@@ -34,8 +34,8 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = " ".join(args[2:-1]) if len(args) > 3 else args[2]
         repeat = args[-1] if len(args) > 3 else None
 
-        # Parse date and time
-        reminder_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        # Parse date and time in dd-mm-yyyy format
+        reminder_time = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
 
         # Store reminder
         chat_id = update.message.chat_id
@@ -49,7 +49,7 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         user_reminders[chat_id].append(reminder)
 
-        await update.message.reply_text(f"Reminder set for {reminder_time}!")
+        await update.message.reply_text(f"Reminder set for {reminder_time.strftime('%d-%m-%Y %H:%M')}!")
 
         # Schedule the reminder
         asyncio.create_task(send_reminder(chat_id, reminder_time, message, repeat))
@@ -85,6 +85,16 @@ async def send_reminder(chat_id, reminder_time, message, repeat):
                 reminder_time += timedelta(days=1)
             elif repeat == "weekly":
                 reminder_time += timedelta(weeks=1)
+            elif repeat == "monthly":
+                reminder_time += timedelta(days=30)  # Approximate monthly interval
+            elif repeat == "quarterly":
+                reminder_time += timedelta(days=90)  # Approximate quarterly interval
+            elif repeat == "half-yearly":
+                reminder_time += timedelta(days=182)  # Approximate half-yearly interval
+            elif repeat == "yearly":
+                reminder_time += timedelta(days=365)  # Approximate yearly interval
+            else:
+                break  # Invalid repeat interval
 
 # Command to list active reminders
 async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -93,7 +103,7 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reminders_list = []
         for i, reminder in enumerate(user_reminders[chat_id], start=1):
             reminders_list.append(
-                f"{i}. {reminder['time'].strftime('%Y-%m-%d %H:%M')}: {reminder['message']} "
+                f"{i}. {reminder['time'].strftime('%d-%m-%Y %H:%M')}: {reminder['message']} "
                 f"(Repeat: {reminder['repeat'] if reminder['repeat'] else 'No'})"
             )
         await update.message.reply_text("Your active reminders:\n" + "\n".join(reminders_list))
@@ -107,7 +117,7 @@ async def list_expired_reminders(update: Update, context: ContextTypes.DEFAULT_T
         expired_list = []
         for i, reminder in enumerate(user_expired_reminders[chat_id], start=1):
             expired_list.append(
-                f"{i}. {reminder['time'].strftime('%Y-%m-%d %H:%M')}: {reminder['message']}"
+                f"{i}. {reminder['time'].strftime('%d-%m-%Y %H:%M')}: {reminder['message']}"
             )
         await update.message.reply_text("Your expired reminders:\n" + "\n".join(expired_list))
     else:
