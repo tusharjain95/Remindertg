@@ -1,3 +1,4 @@
+import os  # Add this import at the top
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -7,6 +8,9 @@ import asyncio
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Fetch the token from the environment variable
+TOKEN = os.getenv("YOUR_API_TOKEN")  # Add this line to fetch the token
 
 # Dictionary to store reminders for each user
 user_reminders = {}  # Active reminders
@@ -111,8 +115,8 @@ async def list_expired_reminders(update: Update, context: ContextTypes.DEFAULT_T
 
 # Main function to run the bot
 def main():
-    # Replace 'YOUR_API_TOKEN' with your bot's API token
-    application = Application.builder().token("YOUR_API_TOKEN").build()
+    # Use the token from the environment variable
+    application = Application.builder().token(TOKEN).build()
 
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
