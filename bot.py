@@ -1,9 +1,10 @@
 import os
 import logging
+import asyncio
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from datetime import datetime, timedelta
-import asyncio
+from aiohttp import web
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +38,20 @@ class RepetitiveReminder:
         self.remaining = count
         self.task = None
 
+# HTTP Server for Render compatibility
+async def health_check(request):
+    return web.Response(text="Bot is running")
+
+async def run_web_server():
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
+    await site.start()
+    logger.info(f"HTTP server running on port {os.getenv('PORT', 8080)}")
+
+# Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "📅 Reminder Bot Commands:\n"
@@ -320,7 +335,11 @@ def main():
     for handler in handlers:
         application.add_handler(handler)
     
-    application.run_polling()
+    # Start both Telegram bot and HTTP server
+    loop = asyncio.get_event_loop()
+    loop.create_task(application.run_polling())
+    loop.create_task(run_web_server())
+    loop.run_forever()
 
 if __name__ == "__main__":
     main()
