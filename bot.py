@@ -13,16 +13,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Environment variables
 TOKEN = os.getenv("YOUR_API_TOKEN")
-PORT = int(os.getenv("PORT", 10000))
-HOST = os.getenv("HOST", "0.0.0.0")
-
-if PORT in {18012, 18013, 19099}:
-    raise ValueError(f"Port {PORT} is reserved by Render")
 
 # Data storage structure
-user_reminders = {}
+user_reminders = {}  # Format: {chat_id: {'active': [], 'repetitive': [], 'expired': []}}
+
 repeat_intervals = {
     'daily': timedelta(days=1),
     'weekly': timedelta(weeks=1),
@@ -43,25 +38,26 @@ class RepetitiveReminder:
         self.remaining = count
         self.task = None
 
+# HTTP Server for Render compatibility
 async def health_check(request):
-    return web.Response(text="OK", status=200)
+    return web.Response(text="Bot is running")
 
 async def run_web_server():
-    logger.info(f"Starting web server on {HOST}:{PORT}")
     app = web.Application()
     app.router.add_get('/health', health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, HOST, PORT)
+    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
     await site.start()
-    logger.info(f"Server running on port {PORT}")
+    logger.info(f"HTTP server running on port {os.getenv('PORT', 8080)}")
 
+# Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "📅 Reminder Bot Commands:\n"
         "/remind - Set a new reminder\n"
         "/list - Show all reminders\n"
-        "/repetitive - List repeating reminders\n"
+        "/repetitive - List only repeating reminders\n"
         "/expired - Show completed reminders\n"
         "/delete <number> - Delete any reminder\n"
         "/cancel <number> - Cancel repeating reminder\n"
@@ -73,14 +69,16 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         args = context.args
         if len(args) < 3:
-            await update.message.reply_text('❌ Usage: /remind dd-mm-yyyy HH:MM "Message" [repeat] [count]')
+            await update.message.reply_text("❌ Usage: /remind dd-mm-yyyy HH:MM \"Message\" [repeat] [count]")
             return
 
+        # Parse arguments
         date_str, time_str = args[0], args[1]
         message_parts = []
         repeat_type = None
         repeat_count = -1
         
+        # Smart message parsing
         in_quote = False
         for arg in args[2:]:
             if arg.startswith('"'):
@@ -103,8 +101,10 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = " ".join(message_parts)
         chat_id = update.message.chat_id
         
+        # Parse datetime
         reminder_time = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
         
+        # Initialize user storage
         if chat_id not in user_reminders:
             user_reminders[chat_id] = {
                 'active': [],
@@ -112,6 +112,7 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'expired': []
             }
         
+        # Create reminder
         if repeat_type:
             reminder = RepetitiveReminder(
                 chat_id=chat_id,
@@ -133,6 +134,7 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 handle_single_reminder(context.bot, chat_id, reminder_time, message)
             )
         
+        # Build response
         response = f"✅ Reminder set for {reminder_time.strftime('%d-%m-%Y %H:%M')}"
         if repeat_type:
             response += f"\n🔁 Repeat: {repeat_type}"
@@ -156,6 +158,7 @@ async def handle_single_reminder(bot, chat_id, reminder_time, message):
             text=f"⏰ Reminder: {message}"
         )
         
+        # Move to expired
         user_data = user_reminders.get(chat_id, {})
         if 'active' in user_data:
             user_data['active'] = [
@@ -188,11 +191,13 @@ async def handle_repetitive_reminder(bot, reminder):
                 if reminder.remaining == 0:
                     break
             
+            # Schedule next occurrence
             reminder.next_time += repeat_intervals[reminder.interval]
             
     except asyncio.CancelledError:
         logger.info(f"Cancelled reminder: {reminder.message}")
     finally:
+        # Cleanup after completion or cancellation
         user_data = user_reminders.get(reminder.chat_id, {})
         if 'repetitive' in user_data and reminder in user_data['repetitive']:
             user_data['repetitive'].remove(reminder)
@@ -208,11 +213,13 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = user_reminders.get(chat_id, {})
     response = ["📋 All Reminders"]
     
+    # Active reminders
     if user_data.get('active'):
         response.append("\n🔵 One-time Reminders:")
         for idx, rem in enumerate(user_data['active'], 1):
             response.append(f"{idx}. {rem['time'].strftime('%d-%m-%Y %H:%M')}: {rem['message']}")
     
+    # Repetitive reminders
     if user_data.get('repetitive'):
         response.append("\n🔄 Repeating Reminders:")
         for idx, rem in enumerate(user_data['repetitive'], len(user_data.get('active', [])) + 1):
@@ -224,6 +231,7 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status += ")"
             response.append(f"{idx}. {rem.next_time.strftime('%d-%m-%Y %H:%M')}: {rem.message} {status}")
     
+    # Expired reminders
     if user_data.get('expired'):
         response.append("\n🔴 Completed Reminders:")
         for idx, rem in enumerate(user_data['expired'], 1):
@@ -246,6 +254,7 @@ async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         index = int(args[0]) - 1
         user_data = user_reminders.get(chat_id, {})
         
+        # Try active reminders first
         if 'active' in user_data and 0 <= index < len(user_data['active']):
             deleted = user_data['active'].pop(index)
             await update.message.reply_text(
@@ -254,6 +263,7 @@ async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
             
+        # Adjust index for repetitive reminders
         index -= len(user_data.get('active', []))
         if 'repetitive' in user_data and 0 <= index < len(user_data['repetitive']):
             reminder = user_data['repetitive'].pop(index)
@@ -264,6 +274,7 @@ async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
             
+        # Check expired reminders
         index -= len(user_data.get('repetitive', []))
         if 'expired' in user_data and 0 <= index < len(user_data['expired']):
             deleted = user_data['expired'].pop(index)
@@ -307,9 +318,10 @@ async def expired_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text("\n".join(response))
 
-async def main():
+def main():
     application = Application.builder().token(TOKEN).build()
     
+    # Command handlers
     handlers = [
         CommandHandler("start", start),
         CommandHandler("remind", set_reminder),
@@ -323,14 +335,11 @@ async def main():
     for handler in handlers:
         application.add_handler(handler)
     
-    await run_web_server()
-    logger.info("Starting Telegram bot polling")
-    await application.run_polling()
+    # Start both Telegram bot and HTTP server
+    loop = asyncio.get_event_loop()
+    loop.create_task(application.run_polling())
+    loop.create_task(run_web_server())
+    loop.run_forever()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Shutting down gracefully...")
-    except Exception as e:
-        logger.error(f"Critical error: {str(e)}")
+    main()
