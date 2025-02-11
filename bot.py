@@ -47,9 +47,9 @@ async def run_web_server():
     app.router.add_get('/health', health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
+    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
     await site.start()
-    logger.info(f"HTTP server running on port {os.getenv('PORT', 8080)}")
+    logger.info(f"HTTP server running on port {os.getenv('PORT', 10000)}")
 
 # Bot Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
