@@ -328,14 +328,9 @@ async def main():
     await application.run_polling()
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Shutting down gracefully...")
     except Exception as e:
         logger.error(f"Critical error: {str(e)}")
-    finally:
-        loop.close()
