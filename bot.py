@@ -34,7 +34,6 @@ repeat_intervals = {
 
 class RepetitiveReminder:
     def __init__(self, chat_id, start_time, message, interval, count=-1):
-        # Fixed indentation here
         self.chat_id = chat_id
         self.start_time = start_time
         self.next_time = start_time
@@ -84,4 +83,259 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         in_quote = False
         for arg in args[2:]:
-            if arg.
+            if arg.startswith('"'):
+                in_quote = True
+                arg = arg[1:]
+            if arg.endswith('"'):
+                in_quote = False
+                arg = arg[:-1]
+            
+            if in_quote:
+                message_parts.append(arg)
+            else:
+                if arg in repeat_intervals:
+                    repeat_type = arg
+                elif arg.isdigit():
+                    repeat_count = int(arg)
+                else:
+                    message_parts.append(arg)
+        
+        message = " ".join(message_parts)
+        chat_id = update.message.chat_id
+        
+        reminder_time = datetime.strptime(f"{date_str} {time_str}", "%d-%m-%Y %H:%M")
+        
+        if chat_id not in user_reminders:
+            user_reminders[chat_id] = {
+                'active': [],
+                'repetitive': [],
+                'expired': []
+            }
+        
+        if repeat_type:
+            reminder = RepetitiveReminder(
+                chat_id=chat_id,
+                start_time=reminder_time,
+                message=message,
+                interval=repeat_type,
+                count=repeat_count
+            )
+            user_reminders[chat_id]['repetitive'].append(reminder)
+            reminder.task = asyncio.create_task(
+                handle_repetitive_reminder(context.bot, reminder)
+            )
+        else:
+            user_reminders[chat_id]['active'].append({
+                'time': reminder_time,
+                'message': message
+            })
+            asyncio.create_task(
+                handle_single_reminder(context.bot, chat_id, reminder_time, message)
+            )
+        
+        response = f"✅ Reminder set for {reminder_time.strftime('%d-%m-%Y %H:%M')}"
+        if repeat_type:
+            response += f"\n🔁 Repeat: {repeat_type}"
+            if repeat_count > 0:
+                response += f" ({repeat_count} times)"
+            else:
+                response += " (indefinitely)"
+        await update.message.reply_text(response)
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+
+async def handle_single_reminder(bot, chat_id, reminder_time, message):
+    try:
+        delay = (reminder_time - datetime.now()).total_seconds()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"⏰ Reminder: {message}"
+        )
+        
+        user_data = user_reminders.get(chat_id, {})
+        if 'active' in user_data:
+            user_data['active'] = [
+                r for r in user_data['active']
+                if r['time'] != reminder_time or r['message'] != message
+            ]
+        if 'expired' in user_data:
+            user_data['expired'].append({
+                'time': reminder_time,
+                'message': message
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in single reminder: {str(e)}")
+
+async def handle_repetitive_reminder(bot, reminder):
+    try:
+        while reminder.remaining != 0:
+            delay = (reminder.next_time - datetime.now()).total_seconds()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            
+            await bot.send_message(
+                chat_id=reminder.chat_id,
+                text=f"🔁 Repeating: {reminder.message}"
+            )
+            
+            if reminder.remaining > 0:
+                reminder.remaining -= 1
+                if reminder.remaining == 0:
+                    break
+            
+            reminder.next_time += repeat_intervals[reminder.interval]
+            
+    except asyncio.CancelledError:
+        logger.info(f"Cancelled reminder: {reminder.message}")
+    finally:
+        user_data = user_reminders.get(reminder.chat_id, {})
+        if 'repetitive' in user_data and reminder in user_data['repetitive']:
+            user_data['repetitive'].remove(reminder)
+        if 'expired' in user_data:
+            user_data['expired'].append({
+                'time': reminder.start_time,
+                'message': reminder.message,
+                'repeat': reminder.interval
+            })
+
+async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    user_data = user_reminders.get(chat_id, {})
+    response = ["📋 All Reminders"]
+    
+    if user_data.get('active'):
+        response.append("\n🔵 One-time Reminders:")
+        for idx, rem in enumerate(user_data['active'], 1):
+            response.append(f"{idx}. {rem['time'].strftime('%d-%m-%Y %H:%M')}: {rem['message']}")
+    
+    if user_data.get('repetitive'):
+        response.append("\n🔄 Repeating Reminders:")
+        for idx, rem in enumerate(user_data['repetitive'], len(user_data.get('active', [])) + 1):
+            status = f"({rem.interval}"
+            if rem.total_count > 0:
+                status += f", {rem.remaining} left"
+            else:
+                status += ", endless"
+            status += ")"
+            response.append(f"{idx}. {rem.next_time.strftime('%d-%m-%Y %H:%M')}: {rem.message} {status}")
+    
+    if user_data.get('expired'):
+        response.append("\n🔴 Completed Reminders:")
+        for idx, rem in enumerate(user_data['expired'], 1):
+            response.append(f"{idx}. {rem['time'].strftime('%d-%m-%Y %H:%M')}: {rem['message']}")
+    
+    if len(response) == 1:
+        response.append("\nNo reminders found!")
+    
+    await update.message.reply_text("\n".join(response))
+
+async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        chat_id = update.message.chat_id
+        args = context.args
+        
+        if not args or not args[0].isdigit():
+            await update.message.reply_text("❌ Usage: /delete <number>")
+            return
+            
+        index = int(args[0]) - 1
+        user_data = user_reminders.get(chat_id, {})
+        
+        if 'active' in user_data and 0 <= index < len(user_data['active']):
+            deleted = user_data['active'].pop(index)
+            await update.message.reply_text(
+                f"🗑️ Deleted one-time reminder:\n"
+                f"{deleted['time'].strftime('%d-%m-%Y %H:%M')}: {deleted['message']}"
+            )
+            return
+            
+        index -= len(user_data.get('active', []))
+        if 'repetitive' in user_data and 0 <= index < len(user_data['repetitive']):
+            reminder = user_data['repetitive'].pop(index)
+            reminder.task.cancel()
+            await update.message.reply_text(
+                f"❌ Cancelled repeating reminder:\n"
+                f"{reminder.next_time.strftime('%d-%m-%Y %H:%M')}: {reminder.message}"
+            )
+            return
+            
+        index -= len(user_data.get('repetitive', []))
+        if 'expired' in user_data and 0 <= index < len(user_data['expired']):
+            deleted = user_data['expired'].pop(index)
+            await update.message.reply_text(
+                f"🗑️ Deleted completed reminder:\n"
+                f"{deleted['time'].strftime('%d-%m-%Y %H:%M')}: {deleted['message']}"
+            )
+            return
+            
+        await update.message.reply_text("❌ Invalid reminder number")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+
+async def repetitive_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    user_data = user_reminders.get(chat_id, {})
+    
+    response = ["🔄 Active Repeating Reminders"]
+    if user_data.get('repetitive'):
+        for idx, rem in enumerate(user_data['repetitive'], 1):
+            status = f"({rem.interval}, "
+            status += f"{rem.remaining} left" if rem.total_count > 0 else "endless"
+            status += ")"
+            response.append(f"{idx}. {rem.next_time.strftime('%d-%m-%Y %H:%M')}: {rem.message} {status}")
+    else:
+        response.append("No active repeating reminders")
+    
+    await update.message.reply_text("\n".join(response))
+
+async def expired_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+    user_data = user_reminders.get(chat_id, {})
+    
+    response = ["🔴 Completed/Expired Reminders"]
+    if user_data.get('expired'):
+        for idx, rem in enumerate(user_data['expired'], 1):
+            response.append(f"{idx}. {rem['time'].strftime('%d-%m-%Y %H:%M')}: {rem['message']}")
+    else:
+        response.append("No completed reminders")
+    
+    await update.message.reply_text("\n".join(response))
+
+async def main():
+    application = Application.builder().token(TOKEN).build()
+    
+    handlers = [
+        CommandHandler("start", start),
+        CommandHandler("remind", set_reminder),
+        CommandHandler("list", list_reminders),
+        CommandHandler("delete", delete_reminder),
+        CommandHandler("repetitive", repetitive_reminders),
+        CommandHandler("expired", expired_reminders),
+        CommandHandler("help", start)
+    ]
+    
+    for handler in handlers:
+        application.add_handler(handler)
+    
+    await run_web_server()
+    logger.info("Starting Telegram bot polling")
+    await application.run_polling()
+
+if __name__ == "__main__":
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        logger.info("Shutting down gracefully...")
+    except Exception as e:
+        logger.error(f"Critical error: {str(e)}")
+    finally:
+        loop.close()
